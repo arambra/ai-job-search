@@ -70,6 +70,7 @@ _HYBRID = [
     r"\b(\d|one|two|three|four|five)\s*(\+\s*)?days?\s*(in|at)\s*(the\s+)?office\b",
     r"\bin[\s-]office\s+(presence|requirement|days?)\b",
     r"\b(in|at)\s+(the\s+|our\s+)?office\s+(\d|one|two|three|four)\s*(\+\s*)?days?\s*(a|per|each|/)\s*week\b",
+    r"\b(\d|one|two|three|four)\s*(\+\s*)?(office|in[\s-]office|on[\s-]?site)\s+days?\b",
 ]
 _ONSITE = [
     r"\bon[\s-]?site\s+(role|position|job|work|only|presence|requirement|\d|five|5)\b",

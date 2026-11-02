@@ -55,6 +55,8 @@ class Verdicts(unittest.TestCase):
             "Position Type: Hybrid",
             "This role follows a hybrid work model requiring three days per week onsite.",
             "Remote work considered.\nYou will be in the office 2 days a week.",
+            # Principal Financial 4482797439 - read as remote before this pattern existed.
+            "hybrid (including at least three office days in a typical workweek), and remote work arrangements",
         ]:
             self.assertEqual(verdict(text), "hybrid", text)
 

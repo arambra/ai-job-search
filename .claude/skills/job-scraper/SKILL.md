@@ -131,14 +131,20 @@ Integration Developer", Kaleidoscope Innovation) as a remote High match because 
    `get_page_text`; batch several with `browser_batch`), read that label, and re-run
    `python3 tools/workplace.py --text "<description>" --label "<label>"` - the label
    overrides the text. Read-only: never click Apply, Save or anything else on the page.
-3. **Apply the verdict** against the Location Filter in `search-queries.md`:
-   - `onsite` or `hybrid` (outside the candidate's acceptable area) -> `fit: low`,
-     `status: skipped`; not presented.
+3. **Apply the verdict - remote only (user rule, 2026-11-01: "job should be remote").**
+   Only a posting whose verdict is `remote` may be presented. Everything else is stored
+   and not presented:
+   - `onsite` or `hybrid` -> `fit: low`, `status: skipped`.
+   - Still `unknown` / `mixed` after the label check (no label on the page, or Chrome
+     unavailable) -> `fit: low`, `status: skipped`. An unverified posting is not a
+     remote posting, however strong the skill match - do not present it with a warning,
+     do not cap it at medium; leave it out.
    - `remote` -> score fit normally. Still check the text for country restrictions
-     ("must reside in the US", "US work authorization") and flag them.
-   - Still `unknown` / `mixed` because Chrome is unavailable or shows no label -> cap fit
-     at **medium**, add `⚠ remote unverified` to the Title cell in Step 5, and say so in
-     the summary. Never present an unverified posting as a remote High match.
+     ("must reside in the US", "not considering applicants that need sponsorship ... in
+     the United States") and flag them in the highlights.
+   Report the filtered counts in one Step 5 line, e.g. `workplace filter: 4 on-site,
+   3 hybrid, 2 unverified (not shown)`, naming any strong skill match that was dropped
+   only for being unverified, so the user can open it themselves if they choose.
    Persist `workplace` and `workplace_evidence` in Step 4.
 
 **From WebSearch results:** Use `WebFetch` on the posting URL and extract the same
@@ -294,7 +300,7 @@ health: <portal-name> - broken (0 results for the SKILL.md test query and a broa
 |---|-----|-------|---------|----------|-----------|----------|-----|
 | 1 | High | ... | ... | ... | Remote (label) | ... | [Link](...) |
 
-The Workplace cell shows the Step 2 verdict and its source - `Remote (label)`, `Remote (text)`, or `Unverified` - never the search filter that returned the row.
+The Workplace cell shows the Step 2 verdict and its source - `Remote (label)` or `Remote (text)` - never the search filter that returned the row. No other value can appear: non-remote and unverified postings are never presented (Step 2, "remote only").
 
 If Step 2.5 flagged a mass-posting pattern, note it in the Title cell (e.g. "Frontend Developer (posted in 6 cities)") rather than burying it. Do the same for a declared-language-insufficient-level flag from the Language Gate (e.g. "Backend Engineer ⚠ fluent English required") - both are signals the user should see at a glance, not just in the detail highlights below.
 
@@ -335,4 +341,4 @@ If the user decides to apply to any job, the tracker row is written by **job-app
 7. **No automated people lookups.** Referral contacts (Step 4.5) are LinkedIn search links only - never fetch or scrape LinkedIn people-search result pages programmatically.
 8. **Health checks are bounded and honest.** Step 4.75 spends at most one probe, one retry, and (in `health` mode) one detail fetch per portal - a diagnosis, not a crawl. A rate-limit is never evidence of breakage. Health verdicts come only from observed CLI output; a portal that could not be tested is reported as inconclusive, never guessed. The `enabled` toggle is the only thing the health check may edit, and only with confirmation.
 9. **Flag distribution patterns, never accuse.** The mass-posting signal (Step 2.5) describes how a listing is being distributed, not a claim that the employer is a scam. Never name a company as fraudulent or untrustworthy - present the observation and let the user decide.
-10. **Workplace comes from the posting, never the filter.** Every presented job has a `workplace` verdict read from its own text or its signed-in page label (Step 2). A search returned by `--remote remote` is a candidate, not a remote job.
+10. **Workplace comes from the posting, never the filter.** Every presented job has a `workplace` verdict read from its own text or its signed-in page label (Step 2). A search returned by `--remote remote` is a candidate, not a remote job. **Present remote jobs only:** on-site, hybrid and unverified postings are stored as skipped and never shown in the table.
