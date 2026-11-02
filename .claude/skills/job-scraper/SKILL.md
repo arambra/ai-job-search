@@ -104,6 +104,43 @@ looks identical to a job never seen, and the recorded status is what makes a lat
 ghost report self-triaging. `isActive: true` is only the absence of that banner, not
 proof the posting is open; deadlines and dead URLs remain `/rank`'s job.
 
+**Workplace verification (MANDATORY - every candidate, every portal):** open each
+candidate's link and read its workplace keyword (Remote / Hybrid / On-site) before
+assigning fit. A portal's workplace *filter* (`--remote remote`, LinkedIn's `f_WT`) is
+**not** evidence: it leaks. A real run presented linkedin 4427563735 ("Senior Azure
+Integration Developer", Kaleidoscope Innovation) as a remote High match because the
+`--remote remote` search returned it; the posting page labels it **On-site**.
+
+1. **Read the text.** Run every candidate that survives the title pre-filter through
+   its portal's `detail` (not only the "promising" ones - the title alone cannot show the
+   arrangement), and pipe the JSON to the helper:
+   ```bash
+   bun run .agents/skills/<portal>/cli/src/cli.ts detail <id> --format json | python3 tools/workplace.py
+   ```
+   It prints `{"workplace": remote|hybrid|onsite|mixed|unknown, "source", "evidence"}`.
+   Only work-arrangement phrasing counts ("Work Mode: Remote", "Position Type: Hybrid",
+   "three days per week onsite", "#LI-Remote"); technology words like "hybrid
+   integration" or "remote debugging" do not. For WebSearch/WebFetch results, pass the
+   fetched page text with `--text`.
+2. **Read the page label when the text is silent or mixed.** `unknown` means the
+   posting never states its arrangement - it is **not** remote. LinkedIn's logged-out
+   endpoints the CLI uses carry no workplace field; the label (`On-site`, `Remote`,
+   `Hybrid`, shown on the line after the location / "Reposted" line) is rendered only
+   for a signed-in viewer. For each `unknown` or `mixed` candidate, open the posting URL
+   in the user's signed-in Chrome via Claude in Chrome (`navigate`, then
+   `get_page_text`; batch several with `browser_batch`), read that label, and re-run
+   `python3 tools/workplace.py --text "<description>" --label "<label>"` - the label
+   overrides the text. Read-only: never click Apply, Save or anything else on the page.
+3. **Apply the verdict** against the Location Filter in `search-queries.md`:
+   - `onsite` or `hybrid` (outside the candidate's acceptable area) -> `fit: low`,
+     `status: skipped`; not presented.
+   - `remote` -> score fit normally. Still check the text for country restrictions
+     ("must reside in the US", "US work authorization") and flag them.
+   - Still `unknown` / `mixed` because Chrome is unavailable or shows no label -> cap fit
+     at **medium**, add `⚠ remote unverified` to the Title cell in Step 5, and say so in
+     the summary. Never present an unverified posting as a remote High match.
+   Persist `workplace` and `workplace_evidence` in Step 4.
+
 **From WebSearch results:** Use `WebFetch` on the posting URL and extract the same
 fields manually. If it returns HTTP 403, retry with browser headers via `python3 tools/fetch_page.py` per
 `.claude/skills/job-application-assistant/09-web-research.md` before giving up — most
@@ -163,11 +200,15 @@ It prints one line: the canonical key for that posting. The key must be a pure f
       "fit": "high/medium/low",
       "status": "new/skipped/ranked/expired/unreachable",
       "portal": "<source portal skill, e.g. jobindex-search>",
-      "source": "cli/websearch"
+      "source": "cli/websearch",
+      "workplace": "remote/hybrid/onsite/mixed/unknown",
+      "workplace_evidence": "label: On-site" | "<quoted posting line>" | null
     }
   }
 }
 ```
+
+`workplace` is the Step 2 workplace-verification verdict from `tools/workplace.py`, and `workplace_evidence` is what it rested on: the signed-in page label (`"label: On-site"`) or the first quoted posting line, `null` when the verdict is `unknown`. Entries written before this field existed lack it; never backfill it from the search filter that produced them - that filter is exactly the evidence the field exists to replace.
 
 The `portal` field records which CLI skill produced the job (results are already tagged per portal in Step 1b - persist that tag here). Entries written before this field existed lack it; the health check (Step 4.75) attributes those by matching the URL's domain against each portal's base URL, so do not backfill.
 
@@ -249,9 +290,11 @@ fallback (websearch): <portal-name>, <portal-name>
 health: <portal-name> - degraded (company null on all 12 results); parsing anchors in .agents/skills/<portal-name>/url-reference.md
 health: <portal-name> - broken (0 results for the SKILL.md test query and a broader retry); parsing anchors in .agents/skills/<portal-name>/url-reference.md
 
-| # | Fit | Title | Company | Location | Deadline | URL |
-|---|-----|-------|---------|----------|----------|-----|
-| 1 | High | ... | ... | ... | ... | [Link](...) |
+| # | Fit | Title | Company | Location | Workplace | Deadline | URL |
+|---|-----|-------|---------|----------|-----------|----------|-----|
+| 1 | High | ... | ... | ... | Remote (label) | ... | [Link](...) |
+
+The Workplace cell shows the Step 2 verdict and its source - `Remote (label)`, `Remote (text)`, or `Unverified` - never the search filter that returned the row.
 
 If Step 2.5 flagged a mass-posting pattern, note it in the Title cell (e.g. "Frontend Developer (posted in 6 cities)") rather than burying it. Do the same for a declared-language-insufficient-level flag from the Language Gate (e.g. "Backend Engineer ⚠ fluent English required") - both are signals the user should see at a glance, not just in the detail highlights below.
 
@@ -287,8 +330,9 @@ If the user decides to apply to any job, the tracker row is written by **job-app
 2. **Respect deduplication.** Always check job_scraper/seen_jobs.json AND job_search_tracker.csv before presenting.
 3. **Focus on configured geographic area.** Skip jobs that require relocation or are clearly outside commute range.
 4. **Only open positions.** Skip postings with expired deadlines or those marked as closed.
-5. **Be efficient with detail fetches.** Don't run `detail` or WebFetch on every search hit — pre-filter by title/snippet, then fetch only promising matches.
+5. **Be efficient with detail fetches.** Don't run `detail` or WebFetch on every search hit — pre-filter by title/snippet (drop off-target titles and "Analyst" titles), then fetch every survivor, because the workplace check (Step 2) needs each one's own text.
 6. **Parallel searches.** Run portal CLI searches in parallel; use WebSearch only for gaps the CLIs don't cover.
 7. **No automated people lookups.** Referral contacts (Step 4.5) are LinkedIn search links only - never fetch or scrape LinkedIn people-search result pages programmatically.
 8. **Health checks are bounded and honest.** Step 4.75 spends at most one probe, one retry, and (in `health` mode) one detail fetch per portal - a diagnosis, not a crawl. A rate-limit is never evidence of breakage. Health verdicts come only from observed CLI output; a portal that could not be tested is reported as inconclusive, never guessed. The `enabled` toggle is the only thing the health check may edit, and only with confirmation.
 9. **Flag distribution patterns, never accuse.** The mass-posting signal (Step 2.5) describes how a listing is being distributed, not a claim that the employer is a scam. Never name a company as fraudulent or untrustworthy - present the observation and let the user decide.
+10. **Workplace comes from the posting, never the filter.** Every presented job has a `workplace` verdict read from its own text or its signed-in page label (Step 2). A search returned by `--remote remote` is a candidate, not a remote job.
