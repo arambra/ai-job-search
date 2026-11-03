@@ -84,6 +84,8 @@ _ONSITE = [
     r"\b(must|required\s+to|expected\s+to)\s+(be\s+)?(work|report|commute)\w*\s+(from\s+|in\s+|into\s+|to\s+)?(our|the)\s+(office|site)\b",
     r"\bno\s+remote\b",
     r"\bnot\s+(a\s+)?remote\b",
+    r"\b(cannot|can't|can\s+not|unable\s+to|not\s+(be\s+)?(able|allowed|permitted|eligible)\s+to)\b[^.;!?]{0,30}\bremote(ly)?\b",
+    r"\bremote(ly)?\b[^.;!?]{0,30}\b(is|are)\s*(not|n't)\b[^.;!?]{0,20}\b(an?\s+)?(option|available|offered|permitted|allowed|possible)\b",
     r"\brelocat(e|ion)\s+(is\s+)?required\b",
 ]
 
@@ -96,7 +98,26 @@ _LABELS = {
 }
 
 
-_NEGATION = re.compile(r"\b(no|not|non|never|without)[\s-]+(a\s+|an\s+|fully\s+)?$", re.IGNORECASE)
+# Negation anywhere in the clause before a remote match voids it: "cannot work remotely",
+# "you will not be able to work remotely", "remote work is not permitted" (checked after).
+_NEG_WORDS = (r"\b(no|not|non|never|without|cannot|can't|can\s+not|couldn't|won't|"
+              r"isn't|aren't|unable|ineligible|neither|nor)\b")
+_NEGATION = re.compile(_NEG_WORDS, re.IGNORECASE)
+_CLAUSE_BREAK = re.compile(r"[.;:!?]|\bbut\b|\bhowever\b", re.IGNORECASE)
+# Negation that follows the remote phrase in the same clause: "working remotely is not
+# an option", "remote work isn't available".
+_TRAILING_NEG = re.compile(r"^[^.;!?]{0,40}?\b(is|are|was|will\s+be)?\s*(not|n't|never)\b"
+                           r"[^.;!?]{0,25}\b(option|available|offered|permitted|allowed|possible|supported)\b",
+                           re.IGNORECASE)
+
+
+def _negated(line: str, start: int, end: int) -> bool:
+    before = line[:start]
+    breaks = list(_CLAUSE_BREAK.finditer(before))
+    clause = before[breaks[-1].end():] if breaks else before
+    if _NEGATION.search(clause[-60:]):
+        return True
+    return bool(_TRAILING_NEG.search(line[end:]))
 
 
 def _scan(patterns: list[str], text: str, skip_negated: bool = False) -> list[str]:
@@ -104,8 +125,9 @@ def _scan(patterns: list[str], text: str, skip_negated: bool = False) -> list[st
     for line in text.splitlines():
         for pat in patterns:
             m = re.search(pat, line, re.IGNORECASE)
-            # "No remote work" / "not a remote role" are on-site signals, not remote ones.
-            if m and skip_negated and _NEGATION.search(line[: m.start()]):
+            # "No remote work", "cannot work remotely", "remote work is not an option"
+            # are on-site signals, not remote ones.
+            if m and skip_negated and _negated(line, m.start(), m.end()):
                 continue
             if m:
                 s = line.strip()

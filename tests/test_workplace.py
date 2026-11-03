@@ -67,6 +67,23 @@ class Verdicts(unittest.TestCase):
         for text in ["Workplace: On-site", "This is an on-site role in Dallas.", "#LI-Onsite", "No remote work."]:
             self.assertEqual(verdict(text), "onsite", text)
 
+    def test_negated_remote_never_reads_as_remote(self):
+        # Security review: a "work ... remotely" match must not survive a negation that
+        # sits further back in the clause or after the phrase.
+        for text in [
+            "You cannot work remotely.",
+            "Employees can not work remotely in this role.",
+            "You will not be able to work remotely.",
+            "Candidates are unable to work remotely.",
+            "Working remotely is not an option for this position.",
+            "Remote work is not available.",
+        ]:
+            self.assertNotEqual(verdict(text), "remote", text)
+            self.assertEqual(verdict(text), "onsite", text)
+
+    def test_negation_in_an_earlier_clause_does_not_void_remote(self):
+        self.assertEqual(verdict("No travel required; you will work fully remotely."), "remote")
+
     def test_technology_words_are_not_arrangements(self):
         for text in [
             "Collaborates with BAW, Informatica and MuleSoft developers to implement hybrid integration solutions",
