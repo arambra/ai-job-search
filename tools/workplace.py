@@ -44,7 +44,8 @@ import sys
 
 # Each pattern must describe the *work arrangement*, not a technology.
 _REMOTE = [
-    r"\b(fully|100\s*%|completely|permanently)\s+remote\b",
+    r"\b(fully|100\s*%|completely|permanently)\s+remote(ly)?\b",
+    r"\bwork(s|ed|ing)?\s+(fully\s+|entirely\s+|100\s*%\s+)?remotely\b",
     r"\bremote[\s-]*(first|only|role|position|job|opportunity|work(ing)?|employee|eligible|option|friendly|based)\b",
     r"\b(work|working)\s+(from|at)\s+home\b",
     r"\bwfh\b",

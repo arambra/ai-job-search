@@ -46,6 +46,9 @@ class Verdicts(unittest.TestCase):
             "Kforce has a client that is seeking a remote Senior Integration Developer",
             "This is a fully remote role.",
             "Remote in Canada",
+            # Insight req 105712 - read as unknown before the "remotely" pattern existed.
+            "You will have the flexibility to work fully remotely.",
+            "This role can be worked remotely from anywhere in Canada.",
         ]:
             self.assertEqual(verdict(text), "remote", text)
 
