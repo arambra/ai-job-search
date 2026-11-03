@@ -104,12 +104,26 @@ looks identical to a job never seen, and the recorded status is what makes a lat
 ghost report self-triaging. `isActive: true` is only the absence of that banner, not
 proof the posting is open; deadlines and dead URLs remain `/rank`'s job.
 
-**Workplace verification (MANDATORY - every candidate, every portal):** open each
-candidate's link and read its workplace keyword (Remote / Hybrid / On-site) before
-assigning fit. A portal's workplace *filter* (`--remote remote`, LinkedIn's `f_WT`) is
-**not** evidence: it leaks. A real run presented linkedin 4427563735 ("Senior Azure
-Integration Developer", Kaleidoscope Innovation) as a remote High match because the
-`--remote remote` search returned it; the posting page labels it **On-site**.
+**Workplace verification (MANDATORY - every candidate, every source):** open each
+candidate's own posting link and read its workplace keyword (Remote / Hybrid / On-site)
+before assigning fit. This applies to portal CLI results, WebSearch/WebFetch results,
+employer careers-site sweeps, and anything a research subagent returns - a subagent's
+"remote" verdict is a lead to check, never the check itself. A portal's workplace
+*filter* (`--remote remote`, LinkedIn's `f_WT`) is **not** evidence: it leaks. A real run
+presented linkedin 4427563735 ("Senior Azure Integration Developer", Kaleidoscope
+Innovation) as a remote High match because the `--remote remote` search returned it; the
+posting page labels it **On-site**.
+
+**What counts as evidence:** only wording a human sees on the posting page - the
+posting text itself ("Work Model: Remote", "fully remote", "Remote - Canada") or the
+portal's visible workplace label (LinkedIn's On-site/Remote/Hybrid chip under the
+title). **Hidden page metadata never counts on its own**: HTML attributes such as
+`data-jobremotetype="Remote"`, schema.org `jobLocationType`, search-facet values or an
+ATS's internal location code. A real careers-site sweep presented Accenture's "Solution
+Architect - Digital & AI Products" (id 14824211) as remote because the page carried
+`data-jobremotetype="Remote"` while the posting text stated no arrangement; the user
+confirmed it is not remote. When metadata says remote but the visible text is silent,
+the verdict is `unknown`, not `remote`.
 
 1. **Read the text.** Run every candidate that survives the title pre-filter through
    its portal's `detail` (not only the "promising" ones - the title alone cannot show the
@@ -120,8 +134,10 @@ Integration Developer", Kaleidoscope Innovation) as a remote High match because 
    It prints `{"workplace": remote|hybrid|onsite|mixed|unknown, "source", "evidence"}`.
    Only work-arrangement phrasing counts ("Work Mode: Remote", "Position Type: Hybrid",
    "three days per week onsite", "#LI-Remote"); technology words like "hybrid
-   integration" or "remote debugging" do not. For WebSearch/WebFetch results, pass the
-   fetched page text with `--text`.
+   integration" or "remote debugging" do not. For WebSearch/WebFetch and careers-site
+   results, fetch the posting page itself (`WebFetch`, or `python3 tools/fetch_page.py
+   '<url>' --text` on a 403) and pass its **visible text** with `--text` - never a search
+   snippet, a listing-page card, or a subagent's summary of the page.
 2. **Read the page label when the text is silent or mixed.** `unknown` means the
    posting never states its arrangement - it is **not** remote. LinkedIn's logged-out
    endpoints the CLI uses carry no workplace field; the label (`On-site`, `Remote`,
@@ -130,7 +146,11 @@ Integration Developer", Kaleidoscope Innovation) as a remote High match because 
    in the user's signed-in Chrome via Claude in Chrome (`navigate`, then
    `get_page_text`; batch several with `browser_batch`), read that label, and re-run
    `python3 tools/workplace.py --text "<description>" --label "<label>"` - the label
-   overrides the text. Read-only: never click Apply, Save or anything else on the page.
+   overrides the text. The same applies to any employer careers page that renders its
+   workplace only for a browser (JavaScript job boards): open it in Claude in Chrome and
+   read the visible wording. Read-only: never click Apply, Save, accept a cookie banner, or
+   anything else on the page; if a captcha or sign-in wall appears, stop and mark the
+   posting unverified.
 3. **Apply the verdict - remote only (user rule, 2026-11-01: "job should be remote").**
    Only a posting whose verdict is `remote` may be presented. Everything else is stored
    and not presented:
